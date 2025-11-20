@@ -14,9 +14,11 @@ app.get("/check", async (req, res) => {
 
         const query = `
         query ($search: String) {
-          Media(search: $search, type: ANIME) {
-            title { romaji }
-            nextAiringEpisode { episode timeUntilAiring }
+          Page(perPage: 1) {
+            media(search: $search, type: ANIME, sort: POPULARITY_DESC) {
+              title { romaji }
+              nextAiringEpisode { episode timeUntilAiring }
+            }
           }
         }`;
 
@@ -29,7 +31,9 @@ app.get("/check", async (req, res) => {
         });
 
         const json = await response.json();
-        res.json(json);
+
+        const media = json.data.Page.media[0];
+        res.json({ media });
 
     } catch (err) {
         console.error(err);
