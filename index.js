@@ -1,46 +1,40 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const app = express();
 app.use(cors());
-app.use(express.json());
 
-// AniList API proxy
 app.get("/check", async (req, res) => {
-  const query = `
-    query ($search: String) {
-      Media(search: $search, type: ANIME) {
-        title {
-          romaji
+    try {
+        const animeName = req.query.anime;
+        if (!animeName) {
+            return res.status(400).json({ error: "Missing ?anime=" });
         }
-        nextAiringEpisode {
-          episode
-          timeUntilAiring
-        }
-      }
+
+        const query = `
+        query ($search: String) {
+          Media(search: $search, type: ANIME) {
+            title { romaji }
+            nextAiringEpisode { episode timeUntilAiring }
+          }
+        }`;
+
+        const variables = { search: animeName };
+
+        const response = await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query, variables })
+        });
+
+        const json = await response.json();
+        res.json(json);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error talking to AniList." });
     }
-  `;
-
-  const variables = { search: req.query.name };
-
-  try {
-    const response = await fetch("https://graphql.anilist.co", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables })
-    });
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: "server_error" });
-  }
 });
 
-app.listen(3000, () => {
-  console.log("Backend running on port 3000");
-});
+app.listen(3000, () => console.log("Server running on port 3000"));
