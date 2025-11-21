@@ -1,36 +1,42 @@
-// index.js - main server
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const helmet = require('helmet');
-const cron = require('node-cron');
-
-const searchRoutes = require('./routes/search');
-const trackRoutes = require('./routes/track');
-const statusRoutes = require('./routes/status');
-const imageRoutes = require('./routes/image');
-
-const checker = require('./checker');
+import express from "express";
+import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
-app.use(helmet());
 app.use(cors());
-app.use(bodyParser.json());
 
-// routes
-app.use('/api/search', searchRoutes);
-app.use('/api/track', trackRoutes);
-app.use('/api/status', statusRoutes);
-app.use('/api/image', imageRoutes);
+app.get("/check", async (req, res) => {
+    try {
+        const title = req.query.title;
+        if (!title) {
+            return res.status(400).json({ error: "Missing title parameter" });
+        }
 
-// scheduled checks (every 10 minutes)
-cron.schedule('*/10 * * * *', async () => {
-  console.log('Scheduled check running', new Date().toISOString());
-  await checker.runCheck();
+        const query = `
+        query ($search: String) {
+            Media(search: $search, type: ANIME) {
+                title { romaji }
+                nextAiringEpisode {
+                    airingAt
+                    episode
+                }
+            }
+        }`;
+
+        const response = await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query, variables: { search: title } }),
+        });
+
+        const data = await response.json();
+        res.json(data);
+
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).json({ error: "Server error" });
+    }
 });
 
-// run one check at startup
-checker.runCheck().catch(err => console.error('Startup check error', err));
-
-const PORT = process.env.PORT || 4001;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log("Anime Tracker API running on port " + PORT));
